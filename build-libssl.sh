@@ -4,7 +4,7 @@
 #  for iPhoneOS and iPhoneSimulator
 #
 #  Created by Felix Schulze on 16.12.10.
-#  Copyright 2010 Felix Schulze. All rights reserved.
+#  Copyright 2010-2015 Felix Schulze. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -21,8 +21,12 @@
 ###########################################################################
 #  Change values here													  #
 #				
-VERSION="1.0.2a"													      #
+VERSION="1.0.2d"													      #
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`														  #
+CONFIG_OPTIONS=""
+
+# To set "enable-ec_nistp_64_gcc_128" configuration for x64 archs set next variable to "true"
+ENABLE_EC_NISTP_64_GCC_128=""
 #																		  #
 ###########################################################################
 #																		  #
@@ -34,6 +38,7 @@ SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`														  #
 CURRENTPATH=`pwd`
 ARCHS="i386 x86_64 armv7 armv7s arm64"
 DEVELOPER=`xcode-select -print-path`
+MIN_SDK_VERSION="7.0"
 
 if [ ! -d "$DEVELOPER" ]; then
   echo "xcode path is not set correctly $DEVELOPER does not exist (most likely because of xcode > 4.3)"
@@ -91,18 +96,30 @@ do
 	echo "Building openssl-${VERSION} for ${PLATFORM} ${SDKVERSION} ${ARCH}"
 	echo "Please stand by..."
 
-	export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
+	LOCAL_CONFIG_OPTIONS="${CONFIG_OPTIONS}"
+	if [ "${ENABLE_EC_NISTP_64_GCC_128}" == "true" ]; then
+		case "$ARCH" in
+			*64*)
+				LOCAL_CONFIG_OPTIONS="${LOCAL_CONFIG_OPTIONS} enable-ec_nistp_64_gcc_128"
+			;;
+		esac
+	fi
+
+	if [ "${SDKVERSION}" == "9.0" ]; then
+		export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH} -fembed-bitcode"
+	else
+		export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
+	fi
+
 	mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 	LOG="${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/build-openssl-${VERSION}.log"
 
 	set +e
-    if [[ "$VERSION" =~ 1.0.0. ]]; then
-	    ./Configure BSD-generic32 --openssldir="${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" > "${LOG}" 2>&1
-	elif [ "${ARCH}" == "x86_64" ]; then
-	    ./Configure darwin64-x86_64-cc --openssldir="${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" > "${LOG}" 2>&1
-    else
-	    ./Configure iphoneos-cross --openssldir="${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" > "${LOG}" 2>&1
-    fi
+	if [ "${ARCH}" == "x86_64" ]; then
+	    ./Configure no-asm darwin64-x86_64-cc --openssldir="${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" ${LOCAL_CONFIG_OPTIONS} > "${LOG}" 2>&1
+    	else
+	    ./Configure iphoneos-cross --openssldir="${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" ${LOCAL_CONFIG_OPTIONS} > "${LOG}" 2>&1
+	fi
     
     if [ $? != 0 ];
     then 
@@ -111,12 +128,18 @@ do
     fi
 
 	# add -isysroot to CC=
-	sed -ie "s!^CFLAG=!CFLAG=-isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=7.0 !" "Makefile"
+	sed -ie "s!^CFLAG=!CFLAG=-isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=${MIN_SDK_VERSION} !" "Makefile"
 
 	if [ "$1" == "verbose" ];
 	then
+		if [[ ! -z $CONFIG_OPTIONS ]]; then
+			make depend
+		fi
 		make
 	else
+		if [[ ! -z $CONFIG_OPTIONS ]]; then
+			make depend >> "${LOG}" 2>&1
+		fi
 		make >> "${LOG}" 2>&1
 	fi
 	
@@ -127,7 +150,7 @@ do
     fi
     
     set -e
-	make install >> "${LOG}" 2>&1
+	make install_sw >> "${LOG}" 2>&1
 	make clean >> "${LOG}" 2>&1
 done
 
