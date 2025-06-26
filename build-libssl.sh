@@ -66,7 +66,7 @@ esac
 set -e
 if [ ! -e openssl-${VERSION}.tar.gz ]; then
 	echo "Downloading openssl-${VERSION}.tar.gz"
-    curl -O https://www.openssl.org/source/openssl-${VERSION}.tar.gz
+    curl -L -O https://www.openssl.org/source/openssl-${VERSION}.tar.gz
 else
 	echo "Using openssl-${VERSION}.tar.gz"
 fi
