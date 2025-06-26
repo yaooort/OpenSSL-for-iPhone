@@ -76,6 +76,8 @@ mkdir -p "${CURRENTPATH}/bin"
 mkdir -p "${CURRENTPATH}/lib"
 
 tar zxf openssl-${VERSION}.tar.gz -C "${CURRENTPATH}/src"
+# 修正类型声明
+sed -i '' 's/static volatile intr_signal;/static volatile int intr_signal;/' "${CURRENTPATH}/src/openssl-${VERSION}/crypto/ui/ui_openssl.c"
 cd "${CURRENTPATH}/src/openssl-${VERSION}"
 
 
